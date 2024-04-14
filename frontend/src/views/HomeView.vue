@@ -1,5 +1,6 @@
 <template>
   <div class="home">
+    <!-- 欢迎旗帜 -->
     <section class="hero is-small is-dark mb-5">
         <div class="hero-body has-text-centered ">
             <p class="title mb-5 ">
@@ -11,6 +12,7 @@
         </div>
     </section>
 
+    <!-- 标题栏 按钮 -->
     <div class="columns">
       <div class="column is-flex is-aligned-to-the-left">
           <h1 class="title">Generators</h1>
@@ -22,9 +24,9 @@
       </div>
     </div>
 
-    <!-- Main container -->
+    <!-- generator信息 -->
 
-    <div class="columns is-multiline">
+    <!-- <div class="columns is-multiline">
       <div class="is-info">
         <div class="columns genheaders">
           <div class="column is-one-fifth">Name</div>
@@ -39,9 +41,56 @@
           v-bind:generator="generator" />
       </div>
       
-    </div>
+    </div> -->
 
-    <transition name="model">
+    <el-container direction="vertical" style="width:80%;padding-left: 17.5vw;">
+      <el-table :data="paginatedData">
+        <el-table-column
+          prop="name"
+          label="Name"
+          width="180">
+        </el-table-column>
+        <el-table-column
+          prop="size"
+          label="Size"
+          width="180">
+        </el-table-column>
+        <el-table-column
+          prop="patterns"
+          label="Patterns"
+          width="180">
+        </el-table-column>
+        <el-table-column
+          prop="created_at"
+          label="Created at"
+          width="180">
+        </el-table-column>
+        <el-table-column
+          label="Actions"
+          width="180">
+          <template v-slot:default="scope">
+            <el-tooltip class="item" effect="dark" content="Generate" placement="bottom">
+              <el-button type="primary" icon="CirclePlusFilled"></el-button>
+            </el-tooltip>
+            <el-tooltip class="item" effect="dark" content="Delete" placement="bottom">
+              <el-button type="danger" icon="Delete" @click="deleteGenerator(scope.row.id)"></el-button>
+            </el-tooltip>
+          </template>
+        
+        </el-table-column>
+      </el-table>
+      <el-pagination
+      @size-change="handleSizeChange"
+      @current-change="handleCurrentChange"
+      :current-page="currentPage"
+      :page-size="pageSize"
+      :total="generators.length"
+      layout="total, sizes, prev, pager, next, jumper">
+      </el-pagination>
+    </el-container>
+
+    
+    <transition>
       <div v-if="isGenFormVisible" class="modal is-active">
         <div class="modal-background"></div>
         <div class="modal-card">
@@ -52,16 +101,16 @@
           <section class="modal-card-body">
             
             <div class="field">
-              <label class="label">Name</label>
+              <label class="label"> <span class="required">*</span> Name</label>
               <div class="control">
-                <input class="input" type="text" placeholder="Name" v-model="form.name">
+                <input class="input" type="text" placeholder="Name" v-model="form.name" required>
               </div>
             </div>
             <div class="field">
-              <label class="label">Size</label>
+              <label class="label"> <span class="required">*</span> Size</label>
               <div class="control">
                 <div class="select is-rounded is-medium">
-                  <select v-model="form.size">
+                  <select v-model="form.size" required>
                     <option v-for="value in options" :key="value" :value="value">
                       {{ value }}
                     </option>
@@ -70,13 +119,13 @@
               </div>
             </div>
             <div class="field">
-              <label class="label">Patterns</label>
+              <label class="label"> <span class="required">*</span> Patterns</label>
               <div class="control">
                 <label class="checkbox" v-for="patternOption in patternOptions" :key="patternOption" style="margin-right:10px;">
                   <input type="checkbox"
                     :disabled="isNoneSelected && patternOption !== 'none'"
                     v-model="form.selectedPatterns"
-                    :value="patternOption">
+                    :value="patternOption" required>
                     {{ patternOption }}
                 </label>
               </div>
@@ -133,8 +182,7 @@
 
 <script>
 import GeneratorItem from '@/components/GeneratorItem.vue'
-import { useFormLabelWidth } from 'element-plus/es/components/form/src/utils';
-
+import axios from 'axios'
 
 export default {
   name: 'Home',
@@ -151,11 +199,15 @@ export default {
           size: '',
           selectedPatterns: [], // 将 selectedPatterns 作为 form 对象的属性
       },
+      pageSize: 5,
+      currentPage: 1,
+      
       // rules: {
       //   name: [{ required: true, message: 'Please input a name', trigger: 'blur' }],
       //   size: [{ required: true, message: 'Please select a size', trigger: 'change' }],
       //   patterns: [{ required: true, message: 'Please select none or at least one', trigger: 'change' }]
-      // }
+      // } 
+      
     }
   },
   components: {
@@ -167,52 +219,90 @@ export default {
       this.isGenFormVisible = !this.isGenFormVisible;
       console.log('Form visibility:', this.isGenFormVisible)
     },
-    getGenerators(){
-      this.generators = [
-        {
-          id: 1,
-          name: 'fan-in',
-          size: '100',
-          patterns: 'fan-in',
-          created_at: '2024-04-09',
-        },
-        {
-          id: 2,
-          name: 'fan-out',
-          size: '100',
-          patterns: 'fan-out',
-          created_at: '2024-04-09',
-        }
-        
-      ]
+    patternIdToStr(patternIds){
+      // patternIds are like [1,2] and the expected output is 'fan-in, fan-out'
+      const patternMatches = {
+        1: 'fan-in',
+        2: 'fan-out'
+      };
+      return patternIds.map(id => patternMatches[id]).join(', ');
+    },
+    patternStrToId(patternStr){
+      // patternStr is like 'fan-in, fan-out' and the expected output is [1,2]
+      const patternMatches = {
+        'fan-in': 1,
+        'fan-out': 2
+      };
+      return patternStr.split(', ').map(str => patternMatches[str]);
     },
     saveForm() {
-      // 获取当前日期
-      const currentDate = new Date();
-      // 将当前日期格式化为 yyyy-MM-dd 的格式
-      const formattedDate = currentDate.toISOString().split('T')[0];
 
-      // 将格式化后的日期添加到 form 对象的 created_at 属性
-      this.form.created_at = formattedDate;
+      if (!this.form.size || !this.form.name || !this.form.selectedPatterns.length) {
+        alert('Please fill in all required fields.'); // 弹出错误提示
+        return;
+      }
 
-      console.log('Form saved')
-      console.log('Form Data:', JSON.stringify(this.form, null, 2));
+      const patterns = this.patternStrToId(this.form.selectedPatterns.join(', '));
+      const data = {
+        name: this.form.name,
+        size: this.form.size,
+        patterns: patterns
+      };
+      axios
+        .post('/generators/', data)
+        .then(response => {
+          console.log(response)
+          this.getGenerators();
+        })
+        .catch(error => {
+          console.log(error)
+          
+        })
 
+      this.getGenerators();
       this.toggleFormVisibility();
-    }
+      
+    },
+    deleteGenerator(id){
+      axios
+        .delete(`/generators/${id}/`)
+        .then(response => {
+          console.log(response)
+          this.getGenerators();
+        })
+        .catch(error => {
+          console.log(error)
+          
+        })
+      this.getGenerators();
+    },
+    getGenerators() {
+      axios
+        .get('/generators')
+        .then(response => {
+          this.generators = response.data
+            .map(generator => {
+              return {
+                ...generator,
+                patterns: this.patternIdToStr(generator.patterns)
+              }
+            })
+            // 添加排序逻辑
+            .sort((a, b) => b.id - a.id);
+        })
+        .catch(error => {
+          console.log(error)
+        })
+    },
+    handleSizeChange(newSize) {
+      this.pageSize = newSize;
+    },
+    handleCurrentChange(newPage) {
+      this.currentPage = newPage;
+    },
+    network(){
 
-    /* async getGenerators() {
-       this.$store.commit('setIsLoading', true)
-       await axios
-         .get('/api/v1/generators/')
-         .then(response => {
-           this.generators = response.data
-         })
-         .catch(error => {
-           console.log(error)
-         })
-       this.$store.commit('setIsLoading', false)
-    }*/
+    }
   },
   mounted() {
     this.getGenerators()
@@ -222,6 +312,11 @@ export default {
   computed: {
     isNoneSelected() {
       return this.form.selectedPatterns.includes('none')
+    },
+    paginatedData() {
+      const start = (this.currentPage - 1) * this.pageSize;
+      const end = start + this.pageSize;
+      return this.generators.slice(start, end);
     }
   },
   watch: {
@@ -252,7 +347,9 @@ export default {
   margin-top: 1rem;
 }
 
-
+.required {
+  color: red;
+}
 /* 定义过渡的开始和结束状态 
 .modal-enter-from, .modal-leave-to {
   opacity: 0;

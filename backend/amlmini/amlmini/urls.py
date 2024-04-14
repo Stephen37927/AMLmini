@@ -17,8 +17,20 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
  
+# urlpatterns = [
+#     path("admin/", admin.site.urls),
+#     path("api/v1", include("djoser.urls")),
+#     path("api/v1", include("djoser.urls.authtoken")),
+#     path("api/v1", include("generator.urls")),
+# ]
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from generator.views import GeneratorViewSet
+
+router = DefaultRouter()
+router.register(r'generators', GeneratorViewSet)
+
 urlpatterns = [
+    path('', include(router.urls)),
     path("admin/", admin.site.urls),
-    path("api/v1", include("djoser.urls")),
-    path("api/v1", include("djoser.urls.authtoken")),
 ]
